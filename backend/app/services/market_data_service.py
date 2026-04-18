@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
 import yfinance as yf
@@ -24,23 +25,7 @@ class MarketDataService:
             return latest_quote_from_scores(ticker, generate_score_history(ticker))
 
         try:
-            ticker_obj = yf.Ticker(ticker)
-            info = ticker_obj.fast_info
-            price = float(info.get("lastPrice") or info.get("regularMarketPrice"))
-            previous_close = float(info.get("previousClose") or price)
-            payload = {
-                "ticker": ticker,
-                "company_name": ticker_obj.info.get("shortName", ticker),
-                "price": price,
-                "previous_close": previous_close,
-                "daily_change": round(price - previous_close, 2),
-                "daily_change_percent": round(pct_change(price, previous_close), 2),
-                "currency": info.get("currency", "USD"),
-                "market_state": info.get("marketState", "regular"),
-                "as_of": datetime.now(timezone.utc).isoformat(),
-                "source": "yfinance",
-                "is_stale": False,
-            }
+            payload = await asyncio.to_thread(self._fetch_quote_live, ticker)
             await self.cache.set_cached_document("quotes_cache", f"quote:{ticker}", payload, "yfinance", ttl_minutes=15)
             await self.db["quotes"].update_one({"ticker": ticker}, {"$set": payload}, upsert=True)
             return Quote.model_validate(payload)
@@ -62,10 +47,7 @@ class MarketDataService:
             return rows
 
         try:
-            history = yf.download(ticker, period=period, interval="1d", auto_adjust=False, progress=False)
-            rows = []
-            for index, row in history.iterrows():
-                rows.append({"date": index.date().isoformat(), "close": round(float(row["Close"]), 2), "open": round(float(row["Open"]), 2)})
+            rows = await asyncio.to_thread(self._fetch_price_history_live, ticker, period)
             if rows:
                 await self.cache.set_cached_document("price_cache", f"price:{ticker}:{period}", {"rows": rows}, "yfinance", ttl_minutes=60)
                 await self._persist_price_history(ticker, rows)
@@ -81,6 +63,38 @@ class MarketDataService:
             for score in generate_score_history(ticker, 365 if period == "1y" else 180)
         ]
         await self._persist_price_history(ticker, rows)
+        return rows
+
+    def _fetch_quote_live(self, ticker: str) -> dict:
+        ticker_obj = yf.Ticker(ticker)
+        info = ticker_obj.fast_info
+        price = float(info.get("lastPrice") or info.get("regularMarketPrice"))
+        previous_close = float(info.get("previousClose") or price)
+        return {
+            "ticker": ticker,
+            "company_name": ticker_obj.info.get("shortName", ticker),
+            "price": price,
+            "previous_close": previous_close,
+            "daily_change": round(price - previous_close, 2),
+            "daily_change_percent": round(pct_change(price, previous_close), 2),
+            "currency": info.get("currency", "USD"),
+            "market_state": info.get("marketState", "regular"),
+            "as_of": datetime.now(timezone.utc).isoformat(),
+            "source": "yfinance",
+            "is_stale": False,
+        }
+
+    def _fetch_price_history_live(self, ticker: str, period: str) -> list[dict]:
+        history = yf.download(ticker, period=period, interval="1d", auto_adjust=False, progress=False)
+        rows = []
+        for index, row in history.iterrows():
+            rows.append(
+                {
+                    "date": index.date().isoformat(),
+                    "close": round(float(row["Close"]), 2),
+                    "open": round(float(row["Open"]), 2),
+                }
+            )
         return rows
 
     async def _persist_price_history(self, ticker: str, rows: list[dict]) -> None:

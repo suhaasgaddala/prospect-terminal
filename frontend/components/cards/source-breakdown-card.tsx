@@ -9,9 +9,13 @@ export function SourceBreakdownCard({ components }: { components: ScoreComponent
       <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
         Source Breakdown
       </p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Component scores run from 0 to 100 and roll up into the overall score.
+      </p>
       <div className="mt-5 space-y-4">
         {labels.map((label) => {
           const value = components[label];
+          const safeValue = Math.max(0, Math.min(100, value));
           return (
             <div key={label}>
               <div className="mb-2 flex items-center justify-between gap-3">
@@ -21,7 +25,7 @@ export function SourceBreakdownCard({ components }: { components: ScoreComponent
               <div className="h-2 rounded-full bg-white/5">
                 <div
                   className="h-2 rounded-full bg-[linear-gradient(90deg,rgba(78,192,214,0.8),rgba(240,190,74,0.7))]"
-                  style={{ width: `${value}%` }}
+                  style={{ width: `${safeValue}%` }}
                 />
               </div>
             </div>

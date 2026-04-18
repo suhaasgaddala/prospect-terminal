@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
 import { FilingCard } from "@/components/cards/filing-card";
 import { HeadlinesCard } from "@/components/cards/headlines-card";
@@ -11,6 +12,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { formatCurrency, formatPercent, scoreTone } from "@/lib/formatters";
+import { ApiError } from "@/lib/api-client";
 import { api } from "@/services/api";
 
 export default async function StockPage({
@@ -62,10 +64,21 @@ export default async function StockPage({
                   {stock.score.toFixed(0)}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">Explainable score out of 100</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Weighted blend of News, X, Reddit, Filings, and Macro. 50 is neutral.
+                </p>
               </div>
             </div>
             <div className="mt-6">
               <ThesisCard thesis={stock.thesis} />
+            </div>
+            <div className="mt-6">
+              <Link
+                href={`/backtest?ticker=${stock.quote.ticker}&strategy=threshold_cross`}
+                className="inline-flex h-10 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 px-5 text-sm font-medium text-cyan-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/20"
+              >
+                Backtest this ticker
+              </Link>
             </div>
           </div>
           <div className="space-y-6">
@@ -101,7 +114,10 @@ export default async function StockPage({
         </section>
       </AppShell>
     );
-  } catch {
-    notFound();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      notFound();
+    }
+    throw error;
   }
 }

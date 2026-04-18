@@ -4,6 +4,14 @@ import { formatDate } from "@/lib/formatters";
 import { ContentItem } from "@/types/generated-api";
 
 export function SocialFeedCard({ items }: { items: ContentItem[] }) {
+  const sentimentCounts = items.reduce(
+    (acc, item) => {
+      acc[item.sentiment.label] += 1;
+      return acc;
+    },
+    { bullish: 0, neutral: 0, bearish: 0 }
+  );
+
   return (
     <Card>
       <div className="flex items-center justify-between gap-3">
@@ -12,9 +20,18 @@ export function SocialFeedCard({ items }: { items: ContentItem[] }) {
             Social Pulse
           </p>
           <h3 className="mt-2 text-xl font-semibold text-white">X + Reddit sentiment</h3>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {sentimentCounts.bullish} bullish, {sentimentCounts.neutral} neutral,{" "}
+            {sentimentCounts.bearish} bearish
+          </p>
         </div>
       </div>
       <div className="mt-5 space-y-3">
+        {items.length === 0 ? (
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-sm text-muted-foreground">
+            No recent social posts available for this ticker.
+          </div>
+        ) : null}
         {items.map((item) => (
           <a
             key={item.url}

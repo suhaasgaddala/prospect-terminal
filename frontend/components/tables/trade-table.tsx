@@ -2,6 +2,15 @@ import { formatCurrency, formatPercent } from "@/lib/formatters";
 import { BacktestTrade } from "@/types/generated-api";
 
 export function TradeTable({ trades }: { trades: BacktestTrade[] }) {
+  if (trades.length === 0) {
+    return (
+      <div className="rounded-[28px] border border-white/8 bg-black/20 p-6 text-sm text-muted-foreground">
+        No trades were triggered for this configuration. Try lowering the buy threshold or widening the date
+        window.
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-[28px] border border-white/8 bg-black/20">
       <table className="w-full border-collapse text-left">

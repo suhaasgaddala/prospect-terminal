@@ -15,6 +15,14 @@ import { formatDate } from "@/lib/formatters";
 import { EquityPoint } from "@/types/generated-api";
 
 export function EquityCurveChart({ points }: { points: EquityPoint[] }) {
+  if (points.length === 0) {
+    return (
+      <div className="flex h-[360px] items-center justify-center rounded-[28px] border border-white/8 bg-black/20 px-6 text-sm text-muted-foreground">
+        No equity curve data is available for this backtest window.
+      </div>
+    );
+  }
+
   return (
     <div className="h-[360px] rounded-[28px] border border-white/8 bg-black/20 p-4">
       <div className="mb-4">

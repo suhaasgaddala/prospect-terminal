@@ -14,6 +14,14 @@ import { formatDate } from "@/lib/formatters";
 import { ScoreHistoryPoint } from "@/types/generated-api";
 
 export function ScoreHistoryChart({ points }: { points: ScoreHistoryPoint[] }) {
+  if (points.length === 0) {
+    return (
+      <div className="flex h-[320px] items-center justify-center rounded-[28px] border border-white/8 bg-black/20 px-6 text-sm text-muted-foreground">
+        No score history available for this range.
+      </div>
+    );
+  }
+
   return (
     <div className="h-[320px] rounded-[28px] border border-white/8 bg-black/20 p-4">
       <div className="mb-4">

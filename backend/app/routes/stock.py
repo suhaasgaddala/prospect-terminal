@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Query
@@ -27,13 +28,17 @@ async def stock(ticker: str = Query(..., min_length=1)) -> StockResponse:
     scoring_service = ScoringService()
     thesis_service = ThesisService()
 
-    quote = await market_data.get_quote(ticker)
-    score_history = await scoring_service.ensure_score_history(ticker, 180)
+    quote, score_history, headlines, x_items, reddit_items, filing, macro = await asyncio.gather(
+        market_data.get_quote(ticker),
+        scoring_service.ensure_score_history(ticker, 180),
+        news_service.get_news(ticker),
+        x_service.get_posts(ticker),
+        reddit_service.get_posts(ticker),
+        sec_service.get_filing(ticker),
+        macro_service.get_snapshot(),
+    )
     latest_score = score_history[-1]
-    headlines = await news_service.get_news(ticker)
-    social_items = sorted(await x_service.get_posts(ticker) + await reddit_service.get_posts(ticker), key=lambda item: item.created_at, reverse=True)[:6]
-    filing = await sec_service.get_filing(ticker)
-    macro = await macro_service.get_snapshot()
+    social_items = sorted(x_items + reddit_items, key=lambda item: item.created_at, reverse=True)[:6]
     thesis = await thesis_service.get_thesis(ticker, latest_score, headlines, social_items, filing, macro, score_history)
 
     return StockResponse(

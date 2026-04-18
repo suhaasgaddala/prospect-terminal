@@ -4,12 +4,28 @@ import { formatDate } from "@/lib/formatters";
 import { ContentItem } from "@/types/generated-api";
 
 export function HeadlinesCard({ items }: { items: ContentItem[] }) {
+  const sentimentCounts = items.reduce(
+    (acc, item) => {
+      acc[item.sentiment.label] += 1;
+      return acc;
+    },
+    { bullish: 0, neutral: 0, bearish: 0 }
+  );
+
   return (
     <Card>
       <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
         Latest Headlines
       </p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {sentimentCounts.bullish} bullish, {sentimentCounts.neutral} neutral, {sentimentCounts.bearish} bearish
+      </p>
       <div className="mt-5 space-y-3">
+        {items.length === 0 ? (
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-sm text-muted-foreground">
+            No recent headlines available for this ticker.
+          </div>
+        ) : null}
         {items.map((item) => (
           <a
             key={item.url}
