@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 198 42% 4%;
+  --foreground: 198 32% 94%;
+  --card: 197 40% 7%;
+  --border: 196 27% 19%;
+  --muted: 198 15% 60%;
+  --accent: 191 68% 60%;
+  --success: 151 61% 58%;
+  --danger: 0 72% 62%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+::selection {
+  background: rgba(97, 211, 233, 0.28);
+  color: white;
+}
