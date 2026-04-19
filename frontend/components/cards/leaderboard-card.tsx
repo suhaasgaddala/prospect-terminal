@@ -26,6 +26,20 @@ export function LeaderboardCard({
       className="h-full"
     >
       <p className="mb-3 text-xs text-muted-foreground">{subtitle}</p>
+      {items.length === 0 ? (
+        <div className="rounded-2xl border border-rule/70 bg-surface2/30 px-4 py-5">
+          <p className="text-sm font-medium text-foreground">
+            {tone === "bearish"
+              ? "No qualified bearish setups in the tracked universe today."
+              : "No qualified bullish setups in the tracked universe today."}
+          </p>
+          <p className="mt-2 text-xs leading-6 text-muted-foreground">
+            {tone === "bearish"
+              ? "Market breadth is strong right now, so bearish names only appear when both score and price action weaken."
+              : "Bullish names appear only when score and price action align in the tracked universe."}
+          </p>
+        </div>
+      ) : null}
       <ul className="divide-y divide-rule/60">
         {items.map((item, index) => {
           const change = item.daily_change_percent;

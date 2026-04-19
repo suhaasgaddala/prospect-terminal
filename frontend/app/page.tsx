@@ -56,7 +56,11 @@ export default async function HomePage() {
                 value={topBear?.ticker ?? "—"}
                 tone="bear"
                 size="lg"
-                hint={topBear ? `Score ${topBear.overall_score.toFixed(0)} · ${formatPercent(topBear.daily_change_percent)}` : "No signal"}
+                hint={
+                  topBear
+                    ? `Score ${topBear.overall_score.toFixed(0)} · ${formatPercent(topBear.daily_change_percent)}`
+                    : "No qualified bearish setups today"
+                }
               />
             </div>
             <div className="bg-surface/90 p-5">
