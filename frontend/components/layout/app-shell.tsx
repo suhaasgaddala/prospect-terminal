@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { demoTickers } from "@/lib/constants";
+import { CommandBar } from "@/components/layout/command-bar";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -18,45 +18,41 @@ export function AppShell({
   currentPath?: string;
 }) {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(72,184,211,0.16),transparent_34%),linear-gradient(180deg,#06090b,#020406)] text-foreground">
-      <div className="pointer-events-none fixed inset-0 bg-grid bg-[size:54px_54px] opacity-40" />
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(238,184,78,0.12),transparent_24%),radial-gradient(circle_at_80%_0%,rgba(82,191,214,0.14),transparent_22%)]" />
-      <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-8 flex flex-col gap-6 rounded-[32px] border border-white/10 bg-black/20 px-5 py-4 backdrop-blur md:flex-row md:items-center md:justify-between">
-          <div>
-            <Link href="/" className="font-mono text-lg uppercase tracking-[0.3em] text-cyan-200">
-              Prospect Terminal
-            </Link>
-            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-              Signal, not noise.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <nav className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 p-1">
-              {navigation.map((item) => (
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b border-rule/60 bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-[1400px] items-center gap-6 px-6 py-2.5">
+          <Link href="/" className="flex items-center">
+            <span className="text-[15px] font-semibold leading-none tracking-tight text-foreground">
+              Prospect <span className="font-normal text-foreground/70">Terminal</span>
+            </span>
+          </Link>
+          <nav className="ml-2 flex items-center">
+            {navigation.map((item) => {
+              const active = currentPath === item.href;
+              return (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "rounded-full px-4 py-2 text-sm text-muted-foreground transition hover:text-foreground",
-                    currentPath === item.href && "bg-white/10 text-foreground"
+                    "border-b border-transparent px-3.5 py-2.5 font-mono text-[11px] font-medium uppercase leading-none tracking-[0.26em] text-muted-foreground transition-colors hover:text-foreground",
+                    active && "border-accentWarm text-foreground"
                   )}
                 >
                   {item.label}
                 </Link>
-              ))}
-            </nav>
-            <div className="hidden items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-100 lg:flex">
-              {demoTickers.map((ticker) => (
-                <Link key={ticker} href={`/stocks/${ticker}`} className="hover:text-white">
-                  {ticker}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </header>
-        {children}
-      </div>
+              );
+            })}
+          </nav>
+          <div className="ml-auto" aria-hidden />
+        </div>
+        <CommandBar />
+      </header>
+      <main className="mx-auto max-w-[1400px] px-6 py-8">{children}</main>
+      <footer className="mx-auto max-w-[1400px] border-t border-rule/60 px-6 py-6">
+        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+          Prospect Terminal · Sources: SEC · Yahoo Finance · NewsAPI · Reddit · X
+        </p>
+      </footer>
     </div>
   );
 }

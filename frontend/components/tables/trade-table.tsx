@@ -4,35 +4,52 @@ import { BacktestTrade } from "@/types/generated-api";
 export function TradeTable({ trades }: { trades: BacktestTrade[] }) {
   if (trades.length === 0) {
     return (
-      <div className="rounded-[28px] border border-white/8 bg-black/20 p-6 text-sm text-muted-foreground">
-        No trades were triggered for this configuration. Try lowering the buy threshold or widening the date
-        window.
+      <div className="border border-dashed border-rule/60 bg-surface/80 p-6 text-center text-xs text-muted-foreground">
+        No trades triggered. Lower the buy threshold or widen the window.
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-white/8 bg-black/20">
+    <div className="overflow-hidden border border-rule/60 bg-surface/90">
       <table className="w-full border-collapse text-left">
-        <thead className="bg-white/[0.03]">
-          <tr className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-            <th className="px-4 py-4 font-mono">Entry</th>
-            <th className="px-4 py-4 font-mono">Exit</th>
-            <th className="px-4 py-4 font-mono">Entry Px</th>
-            <th className="px-4 py-4 font-mono">Exit Px</th>
-            <th className="px-4 py-4 font-mono">Return</th>
+        <thead className="bg-surface2/60">
+          <tr className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            <th className="px-4 py-2.5 font-medium">Entry</th>
+            <th className="px-4 py-2.5 font-medium">Exit</th>
+            <th className="px-4 py-2.5 text-right font-medium">Entry Px</th>
+            <th className="px-4 py-2.5 text-right font-medium">Exit Px</th>
+            <th className="px-4 py-2.5 text-right font-medium">Return</th>
           </tr>
         </thead>
         <tbody>
-          {trades.map((trade) => (
-            <tr key={`${trade.entry_date}-${trade.exit_date}`} className="border-t border-white/5 text-sm text-slate-100">
-              <td className="px-4 py-4">{trade.entry_date}</td>
-              <td className="px-4 py-4">{trade.exit_date || "-"}</td>
-              <td className="px-4 py-4">{formatCurrency(trade.entry_price)}</td>
-              <td className="px-4 py-4">{trade.exit_price ? formatCurrency(trade.exit_price) : "-"}</td>
-              <td className="px-4 py-4">{trade.return_pct !== null && trade.return_pct !== undefined ? formatPercent(trade.return_pct) : "-"}</td>
-            </tr>
-          ))}
+          {trades.map((trade, idx) => {
+            const ret = trade.return_pct;
+            const tone =
+              ret == null
+                ? "text-muted-foreground"
+                : ret > 0
+                ? "text-bull"
+                : ret < 0
+                ? "text-bear"
+                : "text-foreground";
+            return (
+              <tr
+                key={`${trade.entry_date}-${trade.exit_date}-${idx}`}
+                className="border-t border-rule/50 font-mono text-xs tabular-nums text-foreground/90 odd:bg-surface/90 even:bg-surface2/30"
+              >
+                <td className="px-4 py-2.5">{trade.entry_date}</td>
+                <td className="px-4 py-2.5">{trade.exit_date || "—"}</td>
+                <td className="px-4 py-2.5 text-right">{formatCurrency(trade.entry_price)}</td>
+                <td className="px-4 py-2.5 text-right">
+                  {trade.exit_price ? formatCurrency(trade.exit_price) : "—"}
+                </td>
+                <td className={`px-4 py-2.5 text-right font-medium ${tone}`}>
+                  {ret !== null && ret !== undefined ? formatPercent(ret) : "—"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

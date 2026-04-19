@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
 import { FilingCard } from "@/components/cards/filing-card";
 import { HeadlinesCard } from "@/components/cards/headlines-card";
@@ -10,7 +11,8 @@ import { PriceVsScoreChart } from "@/components/charts/price-vs-score-chart";
 import { ScoreHistoryChart } from "@/components/charts/score-history-chart";
 import { AppShell } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Panel } from "@/components/ui/panel";
+import { Stat } from "@/components/ui/stat";
 import { formatCurrency, formatPercent, scoreTone } from "@/lib/formatters";
 import { ApiError } from "@/lib/api-client";
 import { api } from "@/services/api";
@@ -30,85 +32,137 @@ export default async function StockPage({
       api.getScoreHistory(ticker.toUpperCase(), "3M")
     ]);
 
+    const change = stock.quote.daily_change_percent;
+    const changeTone = change > 0 ? "bull" : change < 0 ? "bear" : "neutral";
+    const scoreTonality: "bull" | "bear" | "warm" =
+      stock.score >= 65 ? "bull" : stock.score <= 40 ? "bear" : "warm";
+    const rating = stock.thesis.rating;
+    const ratingTone: "bull" | "bear" | "neutral" =
+      rating === "bullish" ? "bull" : rating === "bearish" ? "bear" : "neutral";
+    const ratingLabel = rating.toUpperCase();
+    const ratingColorClass =
+      ratingTone === "bull"
+        ? "text-bull border-bull/40 bg-bull/10"
+        : ratingTone === "bear"
+        ? "text-bear border-bear/40 bg-bear/10"
+        : "text-muted-foreground border-rule/70 bg-surface2/60";
+    const ratingBarClass =
+      ratingTone === "bull" ? "bg-bull" : ratingTone === "bear" ? "bg-bear" : "bg-muted-foreground/40";
+    const scoreColorClass =
+      scoreTonality === "bull" ? "text-bull" : scoreTonality === "bear" ? "text-bear" : "text-accentWarm";
+
     return (
       <AppShell>
-        <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-          <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-panel">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="font-mono text-xs uppercase tracking-[0.32em] text-cyan-200">
-                  {stock.quote.ticker}
-                </p>
-                <h1 className="mt-3 text-5xl font-semibold text-white">
-                  {stock.quote.company_name}
-                </h1>
-                <div className="mt-4 flex flex-wrap items-center gap-4">
-                  <span className="text-3xl font-semibold text-white">
-                    {formatCurrency(stock.quote.price)}
-                  </span>
-                  <span
-                    className={`text-sm font-medium ${
-                      stock.quote.daily_change_percent >= 0
-                        ? "text-emerald-300"
-                        : "text-rose-300"
-                    }`}
-                  >
-                    {formatPercent(stock.quote.daily_change_percent)}
-                  </span>
-                  {stock.quote.is_stale ? <Badge tone="neutral">cached</Badge> : null}
-                </div>
-              </div>
-              <div className="rounded-[28px] border border-cyan-500/20 bg-cyan-500/8 px-6 py-5 text-center">
-                <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-cyan-100/80">
-                  Overall Score
-                </p>
-                <p className={`mt-3 text-6xl font-semibold ${scoreTone(stock.score)}`}>
-                  {stock.score.toFixed(0)}
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">Explainable score out of 100</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Weighted blend of News, Filings, and Macro. Social Pulse is preview-only and not
-                  included. 50 is neutral.
-                </p>
-              </div>
+        {/* Dossier header */}
+        <section className="border-b border-rule/60 pb-6">
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div className="min-w-0">
+              <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-accentWarm">
+                Dossier · {stock.quote.ticker}
+              </p>
+              <h1 className="mt-2 truncate text-3xl font-semibold tracking-tight text-white md:text-4xl">
+                {stock.quote.company_name}
+              </h1>
             </div>
-            <div className="mt-6">
-              <ThesisCard thesis={stock.thesis} />
-            </div>
-            <div className="mt-6">
+            <div className="flex flex-wrap items-center gap-2">
+              {stock.quote.is_stale ? <Badge tone="neutral">Cached quote</Badge> : null}
               <Link
                 href={`/backtest?ticker=${stock.quote.ticker}&strategy=threshold_cross`}
-                className="inline-flex h-10 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 px-5 text-sm font-medium text-cyan-100 transition hover:border-cyan-400/40 hover:bg-cyan-500/20"
+                className="inline-flex h-9 items-center gap-2 rounded-sm border border-accentWarm/50 bg-accentWarm/10 px-4 font-mono text-[11px] uppercase tracking-[0.22em] text-accentWarm hover:bg-accentWarm/20"
               >
-                Backtest this ticker
+                Backtest this ticker <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           </div>
+
+          {/* Quote strip */}
+          <div className="mt-6 grid gap-px overflow-hidden border border-rule/70 bg-rule/60 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="bg-surface/90 p-5">
+              <Stat
+                label="Last"
+                value={formatCurrency(stock.quote.price)}
+                size="xl"
+                tone="neutral"
+              />
+            </div>
+            <div className="bg-surface/90 p-5">
+              <Stat
+                label="Change"
+                value={formatPercent(change)}
+                size="xl"
+                tone={changeTone}
+              />
+            </div>
+            <div className="relative bg-surface/90 p-5">
+              <span className={`absolute inset-y-0 left-0 w-[3px] ${ratingBarClass}`} aria-hidden />
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+                  Prospect Score
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.26em] ${ratingColorClass}`}
+                >
+                  <span className={`h-1 w-1 rounded-full ${ratingBarClass}`} aria-hidden />
+                  {ratingLabel}
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className={`font-mono text-4xl tabular-nums leading-none tracking-tight ${scoreColorClass}`}>
+                  {stock.score.toFixed(0)}
+                </span>
+                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                  / 100
+                </span>
+              </div>
+            </div>
+            <div className="bg-surface/90 p-5">
+              <Stat
+                label="Macro"
+                value={stock.macro.score.toFixed(0)}
+                size="xl"
+                tone="neutral"
+                hint={stock.macro.regime}
+              />
+            </div>
+          </div>
+          <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Score = weighted blend of News · Filings · Macro. Social pulse is preview-only.
+          </p>
+        </section>
+
+        {/* Thesis + score breakdown + macro */}
+        <section className="mt-8 grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
+          <ThesisCard thesis={stock.thesis} />
           <div className="space-y-6">
             <SourceBreakdownCard components={stock.components} />
-            <Card>
-              <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
-                Macro Context
-              </p>
-              <h3 className="mt-3 text-3xl font-semibold text-white">
-                {stock.macro.score.toFixed(0)}
-                <span className="ml-2 text-base text-muted-foreground">
-                  {stock.macro.regime}
+            <Panel eyebrow="Macro Context" title={stock.macro.regime} density="compact">
+              <div className="flex items-baseline gap-4">
+                <span className={`font-mono text-4xl tabular-nums ${scoreTone(stock.macro.score)}`}>
+                  {stock.macro.score.toFixed(0)}
                 </span>
-              </h3>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                  Composite / 100
+                </span>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                 {stock.macro.summary}
               </p>
-            </Card>
+            </Panel>
           </div>
         </section>
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-2">
-          <ScoreHistoryChart points={history.points} />
-          <PriceVsScoreChart points={history.points} />
+        {/* Charts */}
+        <section className="mt-8 grid gap-6 xl:grid-cols-2">
+          <Panel eyebrow="Score · 3M" title="Score history" density="compact">
+            <ScoreHistoryChart points={history.points} />
+          </Panel>
+          <Panel eyebrow="Price vs Score" title="Conviction overlay" density="compact">
+            <PriceVsScoreChart points={history.points} />
+          </Panel>
         </section>
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        {/* Headlines + Social + Filing */}
+        <section className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             <HeadlinesCard items={stock.headlines} />
             <SocialFeedCard items={stock.social_items} />

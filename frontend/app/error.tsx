@@ -10,18 +10,24 @@ export default function GlobalError({
   reset: () => void;
 }) {
   return (
-    <div className="mx-auto flex min-h-[60vh] w-full max-w-3xl flex-col items-center justify-center rounded-[32px] border border-rose-500/20 bg-rose-500/5 p-8 text-center">
-      <p className="font-mono text-xs uppercase tracking-[0.28em] text-rose-200">Application error</p>
-      <h2 className="mt-4 text-3xl font-semibold text-white">Unable to load this page</h2>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-        If the backend is not running, start it on port 8000 and ensure{" "}
-        <code className="rounded bg-black/30 px-1 py-0.5 font-mono text-xs">API_BASE_URL</code> in{" "}
-        <code className="rounded bg-black/30 px-1 py-0.5 font-mono text-xs">.env.local</code> points to your API.
+    <div className="mx-auto mt-16 flex min-h-[50vh] w-full max-w-3xl flex-col items-center justify-center border border-bear/30 bg-bear/[0.05] p-8 text-center">
+      <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-bear">
+        Application error
       </p>
-      <p className="mt-4 rounded-full border border-white/10 bg-black/30 px-4 py-2 font-mono text-xs text-muted-foreground">
+      <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
+        Unable to load this page
+      </h2>
+      <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+        If the backend is not running, start it on port 8000 and ensure{" "}
+        <code className="border border-rule/70 bg-surface/90 px-1 py-0.5 font-mono text-[11px]">API_BASE_URL</code>{" "}
+        in{" "}
+        <code className="border border-rule/70 bg-surface/90 px-1 py-0.5 font-mono text-[11px]">.env.local</code>{" "}
+        points to your API.
+      </p>
+      <p className="mt-4 max-w-2xl truncate border border-rule/70 bg-surface/90 px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
         {error.message}
       </p>
-      <Button className="mt-6" onClick={reset}>
+      <Button className="mt-6" variant="primary" onClick={reset}>
         Try again
       </Button>
     </div>

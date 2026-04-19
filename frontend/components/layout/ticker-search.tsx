@@ -18,25 +18,26 @@ export function TickerSearch() {
   }
 
   return (
-    <div className="space-y-5">
-      <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">
+    <div className="space-y-3">
+      <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row">
         <Input
           value={ticker}
           onChange={(event) => setTicker(event.target.value.toUpperCase())}
-          placeholder="Search ticker"
-          className="flex-1"
+          placeholder="ENTER TICKER"
+          className="flex-1 uppercase tracking-[0.18em]"
+          spellCheck={false}
         />
-        <Button type="submit" className="sm:w-40">
-          Open Signal
+        <Button type="submit" variant="primary" className="sm:w-44">
+          Open Dossier
         </Button>
       </form>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {demoTickers.map((item) => (
           <button
             key={item}
             onClick={() => router.push(`/stocks/${item}`)}
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.22em] text-muted-foreground transition hover:border-cyan-400/40 hover:text-white"
             type="button"
+            className="rounded-sm border border-rule/70 bg-surface2/40 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground transition-colors hover:border-accentWarm/50 hover:text-foreground"
           >
             {item}
           </button>

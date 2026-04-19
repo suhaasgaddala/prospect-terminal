@@ -39,6 +39,13 @@ body {
 }
 
 ::selection {
-  background: rgba(97, 211, 233, 0.28);
+  background: hsl(var(--accent-warm) / 0.35);
   color: white;
+}
+
+/* Subtle grid for terminal panels (use opt-in via .panel-grid). */
+.panel-grid {
+  background-image: linear-gradient(hsl(var(--rule) / 0.4) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--rule) / 0.4) 1px, transparent 1px);
+  background-size: 32px 32px;
 }

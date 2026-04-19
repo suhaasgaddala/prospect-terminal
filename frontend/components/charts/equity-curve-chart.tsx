@@ -14,37 +14,70 @@ import {
 import { formatDate } from "@/lib/formatters";
 import { EquityPoint } from "@/types/generated-api";
 
+const tooltipStyle = {
+  background: "#06090b",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 2,
+  fontSize: 12,
+  fontFamily: "var(--font-mono)"
+} as const;
+
+const axisTick = {
+  fill: "hsl(var(--muted-foreground))",
+  fontSize: 11,
+  fontFamily: "var(--font-mono)"
+};
+
+const legendStyle = {
+  fontSize: 11,
+  fontFamily: "var(--font-mono)",
+  textTransform: "uppercase" as const,
+  letterSpacing: "0.18em",
+  color: "hsl(var(--muted-foreground))"
+};
+
 export function EquityCurveChart({ points }: { points: EquityPoint[] }) {
   if (points.length === 0) {
     return (
-      <div className="flex h-[360px] items-center justify-center rounded-[28px] border border-white/8 bg-black/20 px-6 text-sm text-muted-foreground">
+      <div className="flex h-[360px] items-center justify-center border border-rule/60 bg-surface/80 text-xs text-muted-foreground">
         No equity curve data is available for this backtest window.
       </div>
     );
   }
 
   return (
-    <div className="h-[360px] rounded-[28px] border border-white/8 bg-black/20 p-4">
-      <div className="mb-4">
-        <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
-          Equity Curve
-        </p>
-      </div>
+    <div className="h-[360px] border border-rule/60 bg-surface/80 p-3">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={points}>
-          <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: "#88a2ad", fontSize: 12 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: "#88a2ad", fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip
-            contentStyle={{
-              background: "#040809",
-              border: "1px solid rgba(78,192,214,0.2)",
-              borderRadius: "18px"
-            }}
+        <LineChart data={points} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
+          <CartesianGrid stroke="hsl(var(--rule) / 0.6)" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={formatDate}
+            tick={axisTick}
+            axisLine={false}
+            tickLine={false}
+            minTickGap={24}
           />
-          <Legend />
-          <Line type="monotone" dataKey="strategy_equity" name="Score strategy" stroke="#61d3e9" strokeWidth={3} dot={false} />
-          <Line type="monotone" dataKey="benchmark_equity" name="Buy & hold" stroke="#f0be4a" strokeWidth={2} dot={false} />
+          <YAxis tick={axisTick} axisLine={false} tickLine={false} width={56} />
+          <Tooltip contentStyle={tooltipStyle} />
+          <Legend wrapperStyle={legendStyle} iconType="plainline" />
+          <Line
+            type="monotone"
+            dataKey="strategy_equity"
+            name="Strategy"
+            stroke="hsl(var(--accent-warm))"
+            strokeWidth={1.75}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="benchmark_equity"
+            name="Buy & Hold"
+            stroke="hsl(var(--muted))"
+            strokeWidth={1.25}
+            strokeDasharray="4 4"
+            dot={false}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>
