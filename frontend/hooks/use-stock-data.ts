@@ -16,7 +16,7 @@ export function useStockData(ticker: string) {
       try {
         setLoading(true);
         const baseUrl =
-          process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
+          process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api";
         const response = await fetch(`${baseUrl}/stock?ticker=${ticker}`);
         if (!response.ok) {
           throw new Error("Failed to load stock");
