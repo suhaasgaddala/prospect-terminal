@@ -72,6 +72,25 @@ def _apply_live_filing_to_score(score: DailyScore, filing: FilingSummary) -> Dai
     return updated
 
 
+def _apply_live_news_to_score(score: DailyScore, headlines: list[ContentItem], news_service: NewsService) -> DailyScore:
+    updated = score.model_copy(deep=True)
+    updated.components.news = news_service.news_score(headlines)
+    updated.overall_score = round(
+        updated.components.news * 0.25
+        + updated.components.x * 0.20
+        + updated.components.reddit * 0.15
+        + updated.components.filings * 0.20
+        + updated.components.macro * 0.20,
+        2,
+    )
+    updated.evidence_summary["news"] = (
+        f"Live news score built from {len(headlines)} article(s)."
+        if headlines
+        else "No recent live news items were available."
+    )
+    return updated
+
+
 @router.get("/stock", response_model=StockResponse)
 async def stock(ticker: str = Query(..., min_length=1)) -> StockResponse:
     ticker = ticker.upper()
@@ -151,6 +170,7 @@ async def stock(ticker: str = Query(..., min_length=1)) -> StockResponse:
     else:
         macro = opt_macro
 
+    latest_score = _apply_live_news_to_score(latest_score, headlines, news_service)
     latest_score = _apply_live_filing_to_score(latest_score, filing)
 
     social_items = sorted(x_items + reddit_items, key=lambda item: item.created_at, reverse=True)[:6]

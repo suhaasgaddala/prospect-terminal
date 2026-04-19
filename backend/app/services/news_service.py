@@ -23,24 +23,40 @@ class NewsService:
 
     async def get_news(self, ticker: str) -> list[ContentItem]:
         ticker = ticker.upper()
-        if self.settings.demo_mode:
-            return generate_news_items(ticker, generate_score_history(ticker))
-
         items = []
-        if self.settings.finnhub_api_key:
-            items = await self._fetch_finnhub_news(ticker)
-        if not items:
-            items = await self._fetch_yahoo_news(ticker)
+        try:
+            if self.settings.finnhub_api_key:
+                items = await self._fetch_finnhub_news(ticker)
+            if not items:
+                items = await self._fetch_yahoo_news(ticker)
+        except Exception:
+            items = []
+
         if items:
             serialized = [item.model_dump(mode="json") for item in items]
-            await self.cache.set_cached_document("content_cache", f"news:{ticker}", {"items": serialized}, "news", ttl_minutes=45)
+            try:
+                await self.cache.set_cached_document("content_cache", f"news:{ticker}", {"items": serialized}, "news", ttl_minutes=45)
+            except Exception:
+                pass
             await self._persist_items(items)
             return items
 
-        cached, _ = await self.cache.stale_or_none("content_cache", f"news:{ticker}")
-        if cached:
-            return [ContentItem.model_validate(item) for item in cached.get("items", [])]
+        try:
+            cached, _ = await self.cache.stale_or_none("content_cache", f"news:{ticker}")
+            if cached:
+                return [ContentItem.model_validate(item) for item in cached.get("items", [])]
+        except Exception:
+            pass
         return generate_news_items(ticker, generate_score_history(ticker))
+
+    def news_score(self, items: list[ContentItem]) -> float:
+        weighted = []
+        now = datetime.now(timezone.utc)
+        for item in items:
+            age_hours = max((now - item.created_at).total_seconds() / 3600, 0)
+            recency_weight = max(0.5, 2.5 - min(age_hours / 72, 2.0))
+            weighted.append((item.sentiment.score, recency_weight))
+        return self.sentiment.aggregate_sentiment(weighted)
 
     async def _fetch_finnhub_news(self, ticker: str) -> list[ContentItem]:
         today = datetime.now(timezone.utc).date()
@@ -107,10 +123,13 @@ class NewsService:
     async def _persist_items(self, items: list[ContentItem]) -> None:
         if not items:
             return
-        collection = self.db["content_items"]
-        for item in items:
-            await collection.update_one(
-                {"source": item.source, "ticker": item.ticker, "url": item.url},
-                {"$set": item.model_dump(mode="json")},
-                upsert=True,
-            )
+        try:
+            collection = self.db["content_items"]
+            for item in items:
+                await collection.update_one(
+                    {"source": item.source, "ticker": item.ticker, "url": item.url},
+                    {"$set": item.model_dump(mode="json")},
+                    upsert=True,
+                )
+        except Exception:
+            return

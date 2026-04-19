@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 import yfinance as yf
 
@@ -21,19 +21,25 @@ class MarketDataService:
 
     async def get_quote(self, ticker: str) -> Quote:
         ticker = ticker.upper()
-        if self.settings.demo_mode:
-            return latest_quote_from_scores(ticker, generate_score_history(ticker))
-
         try:
             payload = await asyncio.to_thread(self._fetch_quote_live, ticker)
-            await self.cache.set_cached_document("quotes_cache", f"quote:{ticker}", payload, "yfinance", ttl_minutes=15)
-            await self.db["quotes"].update_one({"ticker": ticker}, {"$set": payload}, upsert=True)
+            try:
+                await self.cache.set_cached_document("quotes_cache", f"quote:{ticker}", payload, "yfinance", ttl_minutes=15)
+            except Exception:
+                pass
+            try:
+                await self.db["quotes"].update_one({"ticker": ticker}, {"$set": payload}, upsert=True)
+            except Exception:
+                pass
             return Quote.model_validate(payload)
         except Exception:
-            cached, _ = await self.cache.stale_or_none("quotes_cache", f"quote:{ticker}")
-            if cached:
-                cached["is_stale"] = True
-                return Quote.model_validate(cached)
+            try:
+                cached, _ = await self.cache.stale_or_none("quotes_cache", f"quote:{ticker}")
+                if cached:
+                    cached["is_stale"] = True
+                    return Quote.model_validate(cached)
+            except Exception:
+                pass
             return latest_quote_from_scores(ticker, generate_score_history(ticker))
 
     async def get_price_history(self, ticker: str, period: str = "1y") -> list[dict]:
@@ -68,18 +74,30 @@ class MarketDataService:
     def _fetch_quote_live(self, ticker: str) -> dict:
         ticker_obj = yf.Ticker(ticker)
         info = ticker_obj.fast_info
-        price = float(info.get("lastPrice") or info.get("regularMarketPrice"))
+        full_info = ticker_obj.info or {}
+        price = float(
+            info.get("lastPrice")
+            or info.get("regularMarketPrice")
+            or full_info.get("regularMarketPrice")
+            or full_info.get("currentPrice")
+        )
         previous_close = float(info.get("previousClose") or price)
+        market_timestamp = full_info.get("regularMarketTime")
+        as_of = (
+            datetime.fromtimestamp(market_timestamp, tz=UTC).isoformat()
+            if isinstance(market_timestamp, (int, float))
+            else datetime.now(timezone.utc).isoformat()
+        )
         return {
             "ticker": ticker,
-            "company_name": ticker_obj.info.get("shortName", ticker),
+            "company_name": full_info.get("shortName", ticker),
             "price": price,
             "previous_close": previous_close,
             "daily_change": round(price - previous_close, 2),
             "daily_change_percent": round(pct_change(price, previous_close), 2),
             "currency": info.get("currency", "USD"),
             "market_state": info.get("marketState", "regular"),
-            "as_of": datetime.now(timezone.utc).isoformat(),
+            "as_of": as_of,
             "source": "yfinance",
             "is_stale": False,
         }
