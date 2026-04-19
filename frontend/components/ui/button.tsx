@@ -4,19 +4,29 @@ import { cn } from "@/lib/utils";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   asChild?: boolean;
-  variant?: "default" | "ghost" | "outline";
+  variant?: "default" | "primary" | "secondary" | "ghost" | "outline";
+  size?: "sm" | "md";
 };
 
-export function Button({ className, variant = "default", ...props }: ButtonProps) {
+export function Button({
+  className,
+  variant = "default",
+  size = "md",
+  ...props
+}: ButtonProps) {
   return (
     <button
       className={cn(
-        "inline-flex h-10 items-center justify-center rounded-full px-4 text-sm font-medium transition duration-200",
-        variant === "default" &&
-          "bg-[linear-gradient(135deg,rgba(76,190,214,0.2),rgba(237,191,88,0.18))] text-foreground shadow-panel hover:brightness-110",
-        variant === "ghost" && "text-muted-foreground hover:text-foreground",
+        "inline-flex items-center justify-center rounded-sm border font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accentWarm/60",
+        size === "sm" ? "h-8 px-3 text-xs" : "h-9 px-4 text-sm",
+        (variant === "default" || variant === "primary") &&
+          "border-accentWarm/60 bg-accentWarm/15 text-accentWarm hover:bg-accentWarm/25",
+        variant === "secondary" &&
+          "border-rule/70 bg-surface2/60 text-foreground hover:border-foreground/40",
         variant === "outline" &&
-          "border border-[hsl(var(--border))] bg-transparent text-foreground hover:border-[hsl(var(--accent))]",
+          "border-rule/70 bg-transparent text-foreground hover:border-foreground/40",
+        variant === "ghost" &&
+          "border-transparent text-muted-foreground hover:text-foreground",
         className
       )}
       {...props}

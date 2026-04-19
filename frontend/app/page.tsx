@@ -22,13 +22,15 @@ export default async function HomePage() {
       <section className="grid gap-6 lg:grid-cols-[1.35fr_0.95fr]">
         <div className="rounded-[36px] border border-white/10 bg-[linear-gradient(135deg,rgba(6,10,12,0.94),rgba(8,14,16,0.78))] p-8 shadow-panel">
           <p className="font-mono text-xs uppercase tracking-[0.32em] text-cyan-200">
-            AI-powered market intelligence
+            PROSPECT TERMINAL
           </p>
           <h1 className="mt-5 max-w-3xl text-5xl font-semibold leading-[1.02] text-white md:text-6xl">
-            Track explainable stock conviction across social, filings, news, macro, and backtests.
+            Spot conviction.
+            <br />
+            Test the edge.
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground">
-            Prospect Terminal ingests X, Reddit, financial news, SEC filings, and macro data to produce a transparent stock score and an investor-ready thesis.
+            An explainable stock terminal built on live prices, filings, news, macro, and backtests.
           </p>
           <div className="mt-8 max-w-xl">
             <TickerSearch />

@@ -22,7 +22,13 @@ const config: Config = {
         },
         accent: "hsl(var(--accent))",
         success: "hsl(var(--success))",
-        danger: "hsl(var(--danger))"
+        danger: "hsl(var(--danger))",
+        surface: "hsl(var(--surface) / <alpha-value>)",
+        surface2: "hsl(var(--surface-2) / <alpha-value>)",
+        rule: "hsl(var(--rule) / <alpha-value>)",
+        bull: "hsl(var(--bull) / <alpha-value>)",
+        bear: "hsl(var(--bear) / <alpha-value>)",
+        accentWarm: "hsl(var(--accent-warm) / <alpha-value>)"
       },
       fontFamily: {
         sans: ["var(--font-sans)"],

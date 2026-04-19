@@ -4,16 +4,24 @@
 
 
 :root {
-  --background: 198 42% 4%;
+  --background: 200 30% 4%;
   --foreground: 198 32% 94%;
-  --card: 197 40% 7%;
-  --border: 196 27% 19%;
-  --muted: 198 15% 60%;
+  --card: 200 28% 7%;
+  --border: 200 12% 18%;
+  --muted: 200 10% 56%;
   /* Used by Tailwind as `text-muted-foreground` (see tailwind.config.ts `muted.foreground`) */
-  --muted-foreground: 198 12% 58%;
+  --muted-foreground: 200 10% 56%;
   --accent: 191 68% 60%;
-  --success: 151 61% 58%;
-  --danger: 0 72% 62%;
+  --success: 152 60% 50%;
+  --danger: 0 76% 58%;
+
+  /* Terminal redesign tokens (additive). Existing tokens above remain untouched. */
+  --surface: 200 30% 6%;
+  --surface-2: 200 26% 9%;
+  --rule: 200 12% 18%;
+  --bull: 152 60% 50%;
+  --bear: 0 76% 58%;
+  --accent-warm: 38 92% 58%;
 }
 
 * {

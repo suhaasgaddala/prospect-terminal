@@ -28,7 +28,7 @@ export function AppShell({
               Prospect Terminal
             </Link>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-              Explainable market intelligence across social, news, filings, macro, and score-driven backtests.
+              Signal, not noise.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
