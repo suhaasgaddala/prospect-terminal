@@ -67,7 +67,8 @@ export default async function StockPage({
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">Explainable score out of 100</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Weighted blend of News, X, Reddit, Filings, and Macro. 50 is neutral.
+                  Weighted blend of News, Filings, and Macro. Social Pulse is preview-only and not
+                  included. 50 is neutral.
                 </p>
               </div>
             </div>

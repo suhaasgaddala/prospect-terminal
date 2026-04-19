@@ -44,14 +44,6 @@ class MarketDataService:
 
     async def get_price_history(self, ticker: str, period: str = "1y") -> list[dict]:
         ticker = ticker.upper()
-        if self.settings.demo_mode:
-            rows = [
-                {"date": score.date.isoformat(), "close": score.price_close, "open": round(score.price_close * 0.997, 2)}
-                for score in generate_score_history(ticker, 365 if period == "1y" else 180)
-            ]
-            await self._persist_price_history(ticker, rows)
-            return rows
-
         try:
             rows = await asyncio.to_thread(self._fetch_price_history_live, ticker, period)
             if rows:
@@ -104,13 +96,19 @@ class MarketDataService:
 
     def _fetch_price_history_live(self, ticker: str, period: str) -> list[dict]:
         history = yf.download(ticker, period=period, interval="1d", auto_adjust=False, progress=False)
+        if getattr(history.columns, "nlevels", 1) > 1:
+            close_series = history["Close"].iloc[:, 0]
+            open_series = history["Open"].iloc[:, 0]
+        else:
+            close_series = history["Close"]
+            open_series = history["Open"]
         rows = []
-        for index, row in history.iterrows():
+        for index in history.index:
             rows.append(
                 {
                     "date": index.date().isoformat(),
-                    "close": round(float(row["Close"]), 2),
-                    "open": round(float(row["Open"]), 2),
+                    "close": round(float(close_series.loc[index]), 2),
+                    "open": round(float(open_series.loc[index]), 2),
                 }
             )
         return rows

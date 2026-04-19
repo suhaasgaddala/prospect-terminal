@@ -17,7 +17,7 @@ from app.models.domain import (
     Sentiment,
     Thesis,
 )
-from app.utils.math import clamp, pct_change
+from app.utils.math import clamp, pct_change, prospect_score
 
 COMPANY_NAMES = {
     "AAPL": "Apple Inc.",
@@ -67,6 +67,43 @@ SOCIAL_SNIPPETS = {
     ],
 }
 
+SOCIAL_PREVIEW_THEMES = {
+    "AAPL": {
+        "bullish": [
+            "China channel checks feel better this week and the desk keeps circling a steadier iPhone cycle.",
+            "Services strength is still the cleanest bull case in the thread and people keep pointing to margin resilience.",
+            "A lot of chatter says the installed-base story gives Apple more downside support than the tape implies.",
+        ],
+        "neutral": [
+            "The room sounds split between wanting the brand durability and worrying the stock needs a fresher catalyst.",
+            "Most posts are treating Apple as a quality hold rather than a chase-right-now setup.",
+            "People keep debating whether hardware upside is enough without a bigger AI product moment.",
+        ],
+        "bearish": [
+            "The skeptical posts keep coming back to muted device growth and a stock that already prices in a lot.",
+            "Several threads are worried the next leg higher needs more than buybacks and services stability.",
+            "The bear case is basically slower hardware replacement demand meeting a full multiple.",
+        ],
+    },
+    "NVDA": {
+        "bullish": [
+            "GPU demand chatter is still hot and traders keep repeating that hyperscaler capex has not rolled over.",
+            "A lot of the feed is leaning into continued AI infrastructure scarcity and Jensen still owning the narrative.",
+            "Bullish posters keep saying every pullback gets bought because the datacenter story still feels early.",
+        ],
+        "neutral": [
+            "The tone is constructive but people are openly debating how much upside is left after another huge run.",
+            "Threads are split between respecting the trend and not wanting to press the name into strength.",
+            "The common middle-ground take is great company, harder setup if expectations stay perfect.",
+        ],
+        "bearish": [
+            "The cautious side keeps flagging crowding risk and what happens if AI spend ever pauses for a quarter.",
+            "Bearish chatter is focused on valuation compression more than a near-term fundamental collapse.",
+            "Several posts argue the bar is now so high that even good prints could feel like sell-the-news events.",
+        ],
+    },
+}
+
 
 def _ticker_seed(ticker: str) -> int:
     return sum(ord(char) for char in ticker)
@@ -79,15 +116,12 @@ def _utc_datetime(day: date, hour: int = 20) -> datetime:
 def _score_components(ticker: str, day_offset: int, macro_score: float) -> ScoreComponents:
     seed = _ticker_seed(ticker)
     base = BASE_SCORES.get(ticker, 55)
-    swing = math.sin((day_offset + seed) / 8) * 8
-    x_score = clamp(base + swing + math.cos(day_offset / 5) * 3)
-    reddit_score = clamp(base + math.sin(day_offset / 6 + seed / 10) * 9)
     news_score = clamp(base + math.cos(day_offset / 7 + seed / 12) * 7)
     filings_score = clamp(base + math.sin(day_offset / 13 + seed / 15) * 6)
     return ScoreComponents(
         news=round(news_score, 2),
-        x=round(x_score, 2),
-        reddit=round(reddit_score, 2),
+        x=50.0,
+        reddit=50.0,
         filings=round(filings_score, 2),
         macro=round(macro_score, 2),
     )
@@ -171,14 +205,7 @@ def generate_score_history(ticker: str, days: int = 180) -> list[DailyScore]:
         day = today - timedelta(days=(days - offset - 1))
         macro_score = macro_history[offset].score
         components = _score_components(ticker, offset, macro_score)
-        overall = round(
-            components.news * 0.25
-            + components.x * 0.20
-            + components.reddit * 0.15
-            + components.filings * 0.20
-            + components.macro * 0.20,
-            2,
-        )
+        overall = prospect_score(components.news, components.filings, components.macro)
         daily_drift = ((overall - 50) / 50) * 0.011 + math.sin((offset + seed) / 10) * 0.004
         price = round(max(5, price * (1 + daily_drift)), 2)
         scores.append(
@@ -191,12 +218,8 @@ def generate_score_history(ticker: str, days: int = 180) -> list[DailyScore]:
                     "news": "Headline tone stayed constructive with AI and product-cycle mentions leading coverage."
                     if components.news >= 55
                     else "Headlines skewed cautious with valuation and demand normalization concerns.",
-                    "x": "X sentiment is engagement-weighted and leaning positive."
-                    if components.x >= 55
-                    else "X sentiment softened as traders focused on execution risk.",
-                    "reddit": "Reddit threads leaned bullish on momentum and retail participation."
-                    if components.reddit >= 55
-                    else "Reddit discussion cooled with more mixed retail conviction.",
+                    "x": "Social Pulse is preview-only and is not included in the Prospect Score.",
+                    "reddit": "Social Pulse is preview-only and is not included in the Prospect Score.",
                     "filings": "Recent filings highlighted manageable risk language and constructive business commentary."
                     if components.filings >= 55
                     else "Recent filing language emphasized caution around margins, competition, or capital needs.",
@@ -238,30 +261,58 @@ def _sentiment_from_score(score: float) -> Sentiment:
 
 def generate_social_items(ticker: str, scores: list[DailyScore]) -> list[ContentItem]:
     latest = scores[-1]
+    company = COMPANY_NAMES.get(ticker, ticker)
     items: list[ContentItem] = []
-    score_buckets = [
-        ("x", latest.components.x),
-        ("reddit", latest.components.reddit),
-        ("x", latest.components.x - 5),
-        ("reddit", latest.components.reddit + 3),
+    preview_base = round(latest.overall_score * 0.5 + latest.components.news * 0.3 + latest.components.filings * 0.2, 2)
+    preview_scores = [
+        ("x", clamp(preview_base + 7)),
+        ("reddit", clamp(preview_base + 2)),
+        ("x", clamp(preview_base - 4)),
+        ("reddit", clamp(preview_base - 1)),
+        ("x", clamp(preview_base + 4)),
+        ("reddit", clamp(preview_base - 6)),
     ]
-    for index, (source, score) in enumerate(score_buckets):
+    theme_set = SOCIAL_PREVIEW_THEMES.get(
+        ticker,
+        {
+            "bullish": [
+                f"The bullish posts keep leaning on {company} execution and a cleaner setup than the tape expects.",
+                f"People are seeing room for upside if {company} turns recent headlines into better numbers.",
+                f"The optimistic chatter is basically that {company} still has enough demand support to surprise higher.",
+            ],
+            "neutral": [
+                f"Most of the feed is balanced on {company}: solid business, less clarity on near-term upside.",
+                f"The neutral read is that {company} looks fine, but conviction is waiting on the next real datapoint.",
+                f"The room sounds interested in {company}, just not unanimously convinced right here.",
+            ],
+            "bearish": [
+                f"The cautious side keeps circling valuation and whether {company} needs a cleaner catalyst stack.",
+                f"Bearish posts are questioning whether expectations for {company} have become too forgiving.",
+                f"A recurring worry is that any wobble could hit {company} harder because sentiment has been crowded.",
+            ],
+        },
+    )
+    authors = {
+        "x": ["tapecheck", "flowsniper", "openbook", "deskcolor", "gammawatch", "semiscope"],
+        "reddit": ["ValueVigilante", "earnings_thread", "terminal_tom", "options_owl", "fundie_frank", "tendie_theta"],
+    }
+    for index, (source, score) in enumerate(preview_scores):
         label = _sentiment_from_score(score).label
-        snippet_pool = SOCIAL_SNIPPETS[label]
+        snippet_pool = theme_set.get(label) or SOCIAL_SNIPPETS[label]
         text = snippet_pool[index % len(snippet_pool)]
         items.append(
             ContentItem(
                 source=source,
                 ticker=ticker,
-                text=f"{ticker}: {text}",
-                author=f"{source}_alpha_{index + 1}",
+                text=f"${ticker} {company}: {text}",
+                author=authors[source][index % len(authors[source])],
                 url=f"https://example.com/{source}/{ticker.lower()}/{index + 1}",
                 created_at=_utc_datetime(latest.date - timedelta(days=index), hour=15 + index),
                 engagement=Engagement(
-                    likes=90 + (index * 13),
-                    comments=18 + (index * 5),
-                    shares=12 + (index * 4),
-                    score=140 + (index * 25),
+                    likes=90 + (index * 15),
+                    comments=18 + (index * 6),
+                    shares=12 + (index * 5),
+                    score=140 + (index * 28),
                 ),
                 sentiment=_sentiment_from_score(score),
             )

@@ -4,6 +4,7 @@ from datetime import date
 
 from app.models.api import BacktestResponse
 from app.models.domain import BacktestMetrics, BacktestTrade, DailyScore, EquityPoint
+from app.services.market_data_service import MarketDataService
 from app.services.scoring_service import ScoringService
 from app.utils.math import max_drawdown
 
@@ -11,6 +12,7 @@ from app.utils.math import max_drawdown
 class BacktestService:
     def __init__(self) -> None:
         self.scoring_service = ScoringService()
+        self.market_data_service = MarketDataService()
         self.transaction_cost = 0.001
 
     async def run_backtest(
@@ -28,7 +30,9 @@ class BacktestService:
         filtered = [row for row in history if start <= row.date <= end]
         if len(filtered) < 2:
             filtered = history[-90:]
-        equity_curve, trades = self._simulate(filtered, strategy_name, threshold, exit_threshold, momentum_window, momentum_delta)
+        price_rows = await self.market_data_service.get_price_history(ticker, period=self._period_for_days(len(filtered) + 30))
+        bars_by_date = {row["date"]: row for row in price_rows}
+        equity_curve, trades = self._simulate(filtered, bars_by_date, strategy_name, threshold, exit_threshold, momentum_window, momentum_delta)
         strategy_values = [point.strategy_equity for point in equity_curve] or [1.0]
         benchmark_values = [point.benchmark_equity for point in equity_curve] or [1.0]
         closed_trades = [trade for trade in trades if trade.return_pct is not None]
@@ -53,6 +57,7 @@ class BacktestService:
     def _simulate(
         self,
         history: list[DailyScore],
+        bars_by_date: dict[str, dict],
         strategy_name: str,
         threshold: float,
         exit_threshold: float,
@@ -62,34 +67,40 @@ class BacktestService:
         in_position = False
         strategy_equity = 1.0
         benchmark_equity = 1.0
-        entry_price = history[0].price_close
-        benchmark_start = history[0].price_close
+        benchmark_start = float(bars_by_date.get(history[0].date.isoformat(), {}).get("open", history[0].price_close))
         open_trade: BacktestTrade | None = None
         trades: list[BacktestTrade] = []
         curve: list[EquityPoint] = []
+        pending_signal = "hold"
 
         for index, row in enumerate(history):
             prev = history[index - 1] if index > 0 else row
-            daily_return = (row.price_close / prev.price_close - 1) if prev.price_close else 0.0
-            signal = self._signal(history, index, strategy_name, threshold, exit_threshold, momentum_window, momentum_delta, in_position)
-            if signal == "buy" and not in_position:
+            bar = bars_by_date.get(row.date.isoformat(), {})
+            open_price = float(bar.get("open", prev.price_close or row.price_close))
+            close_price = row.price_close
+            was_in_position = in_position
+
+            if was_in_position and prev.price_close:
+                strategy_equity *= open_price / prev.price_close
+
+            if pending_signal == "buy" and not was_in_position:
                 in_position = True
                 strategy_equity *= 1 - self.transaction_cost
-                entry_price = row.price_close
-                open_trade = BacktestTrade(entry_date=row.date, entry_price=entry_price, outcome="open")
-            elif signal == "sell" and in_position:
+                open_trade = BacktestTrade(entry_date=row.date, entry_price=open_price, outcome="open")
+            elif pending_signal == "sell" and was_in_position:
                 in_position = False
                 strategy_equity *= 1 - self.transaction_cost
                 if open_trade:
                     open_trade.exit_date = row.date
-                    open_trade.exit_price = row.price_close
-                    open_trade.return_pct = round(((row.price_close / open_trade.entry_price) - 1) * 100 - (self.transaction_cost * 200), 2)
+                    open_trade.exit_price = open_price
+                    open_trade.return_pct = round(((open_price / open_trade.entry_price) - 1) * 100 - (self.transaction_cost * 200), 2)
                     open_trade.outcome = "win" if (open_trade.return_pct or 0) > 0 else "loss"
                     trades.append(open_trade)
                     open_trade = None
             if in_position:
-                strategy_equity *= 1 + daily_return
+                strategy_equity *= close_price / open_price
             benchmark_equity = row.price_close / benchmark_start if benchmark_start else 1.0
+            signal = self._signal(history, index, strategy_name, threshold, exit_threshold, momentum_window, momentum_delta, in_position)
             curve.append(
                 EquityPoint(
                     date=row.date,
@@ -100,6 +111,7 @@ class BacktestService:
                     signal=signal,
                 )
             )
+            pending_signal = signal
 
         if open_trade:
             final = history[-1]
@@ -110,6 +122,17 @@ class BacktestService:
             trades.append(open_trade)
 
         return curve, trades
+
+    def _period_for_days(self, days: int) -> str:
+        if days <= 95:
+            return "3mo"
+        if days <= 185:
+            return "6mo"
+        if days <= 370:
+            return "1y"
+        if days <= 740:
+            return "2y"
+        return "5y"
 
     def _signal(
         self,

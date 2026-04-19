@@ -1,16 +1,17 @@
 import { Card } from "@/components/ui/card";
 import { ScoreComponents } from "@/types/generated-api";
 
-const labels: Array<keyof ScoreComponents> = ["news", "x", "reddit", "filings", "macro"];
+const labels: Array<keyof ScoreComponents> = ["news", "filings", "macro"];
 
 export function SourceBreakdownCard({ components }: { components: ScoreComponents }) {
   return (
     <Card>
       <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
-        Source Breakdown
+        Real Score Inputs
       </p>
       <p className="mt-2 text-xs text-muted-foreground">
-        Component scores run from 0 to 100 and roll up into the overall score.
+        These inputs run from 0 to 100 and roll up into the live Prospect Score. Social Pulse is
+        shown separately as preview-only context.
       </p>
       <div className="mt-5 space-y-4">
         {labels.map((label) => {

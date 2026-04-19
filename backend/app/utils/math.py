@@ -22,3 +22,8 @@ def max_drawdown(values: list[float]) -> float:
             drawdown = (value - peak) / peak
             worst = min(worst, drawdown)
     return round(abs(worst) * 100, 2)
+
+
+def prospect_score(news: float, filings: float, macro: float) -> float:
+    # Preserve the relative importance of the real inputs after removing preview-only social lanes.
+    return round((news * 25 + filings * 20 + macro * 20) / 65, 2)

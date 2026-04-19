@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from bs4 import BeautifulSoup
@@ -99,26 +99,39 @@ class SECService:
     async def get_filing(self, ticker: str) -> FilingSummary:
         ticker = ticker.upper()
         try:
-            cik = await self._ticker_to_cik(ticker)
-            if cik:
-                filing = await self._fetch_latest_filing(ticker, cik)
-                if filing:
-                    try:
-                        await self.db["filings"].update_one({"ticker": ticker}, {"$set": filing.model_dump(mode="json")}, upsert=True)
-                    except Exception:
-                        pass
-                    return filing
+            filings = await self.get_filing_history(ticker)
+            if filings:
+                return filings[0]
         except Exception:
             pass
 
         try:
-            cached = await self.db["filings"].find_one({"ticker": ticker}, {"_id": 0})
+            cached = await self.db["filings"].find_one({"ticker": ticker}, {"_id": 0}, sort=[("filed_at", -1)])
             if cached:
                 cached["is_stale"] = True
                 return FilingSummary.model_validate(cached)
         except Exception:
             pass
         return generate_filing(ticker, generate_score_history(ticker))
+
+    async def get_filing_history(self, ticker: str, years: int = 3, limit: int = 8) -> list[FilingSummary]:
+        ticker = ticker.upper()
+        floor_date = date.today() - timedelta(days=years * 365)
+        cached_docs = await self._load_cached_filings(ticker, floor_date)
+
+        try:
+            cik = await self._ticker_to_cik(ticker)
+            if cik:
+                live_filings = await self._fetch_filing_history(ticker, cik, floor_date=floor_date, limit=limit)
+                if live_filings:
+                    await self._persist_filings(live_filings)
+                    return live_filings
+        except Exception:
+            pass
+
+        if cached_docs:
+            return cached_docs
+        return []
 
     async def _ticker_to_cik(self, ticker: str) -> str | None:
         cached = await self.cache.get_cached_document("reference_cache", "sec:ticker_lookup")
@@ -136,67 +149,94 @@ class SECService:
         return None
 
     async def _fetch_latest_filing(self, ticker: str, cik: str) -> FilingSummary | None:
+        history = await self._fetch_filing_history(ticker, cik, floor_date=date.today() - timedelta(days=3 * 365), limit=1)
+        return history[0] if history else None
+
+    async def _fetch_filing_history(self, ticker: str, cik: str, *, floor_date: date, limit: int) -> list[FilingSummary]:
         headers = {"User-Agent": self.settings.sec_user_agent}
         url = f"https://data.sec.gov/submissions/CIK{cik}.json"
         async with httpx.AsyncClient(timeout=20, headers=headers) as client:
             response = await client.get(url)
             response.raise_for_status()
             payload = response.json()
-            filing_row = self._select_latest_relevant_filing(payload)
-            if not filing_row:
-                return None
+            filing_rows = self._select_relevant_filings(payload, floor_date=floor_date, limit=limit)
+            if not filing_rows:
+                return []
 
-            accession_number = filing_row["accessionNumber"]
-            accession_no_dashes = accession_number.replace("-", "")
             company_name = payload.get("name")
-            filing_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_no_dashes}/{filing_row['primaryDocument']}"
-            filing_text = await self._fetch_filing_text(
-                client,
-                cik=cik,
-                accession_number=accession_number,
-                filing_url=filing_url,
-            )
+            filings: list[FilingSummary] = []
+            for filing_row in filing_rows:
+                accession_number = filing_row["accessionNumber"]
+                cached = await self.db["filings"].find_one(
+                    {"ticker": ticker, "accession_number": accession_number},
+                    {"_id": 0},
+                )
+                if cached:
+                    filings.append(FilingSummary.model_validate(cached))
+                    continue
 
-        analysis = self._analyze_filing(
-            ticker=ticker,
-            company_name=company_name,
-            form_type=filing_row["form"],
-            filing_date=filing_row["filingDate"],
-            filing_text=filing_text,
-        )
+                accession_no_dashes = accession_number.replace("-", "")
+                filing_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_no_dashes}/{filing_row['primaryDocument']}"
+                filing_text = await self._fetch_filing_text(
+                    client,
+                    cik=cik,
+                    accession_number=accession_number,
+                    filing_url=filing_url,
+                )
+                analysis = self._analyze_filing(
+                    ticker=ticker,
+                    company_name=company_name,
+                    form_type=filing_row["form"],
+                    filing_date=filing_row["filingDate"],
+                    filing_text=filing_text,
+                )
+                filings.append(
+                    FilingSummary(
+                        ticker=ticker,
+                        company_name=company_name,
+                        accession_number=accession_number,
+                        cik=cik,
+                        form_type=filing_row["form"],
+                        filed_at=datetime.fromisoformat(filing_row["filingDate"]).replace(tzinfo=UTC),
+                        filing_url=filing_url,
+                        summary=analysis["summary"],
+                        signal_score=analysis["signal_score"],
+                        highlights=analysis["highlights"],
+                        risks=analysis["risks"],
+                        source="sec",
+                    )
+                )
 
-        return FilingSummary(
-            ticker=ticker,
-            company_name=company_name,
-            accession_number=accession_number,
-            cik=cik,
-            form_type=filing_row["form"],
-            filed_at=datetime.fromisoformat(filing_row["filingDate"]).replace(tzinfo=UTC),
-            filing_url=filing_url,
-            summary=analysis["summary"],
-            signal_score=analysis["signal_score"],
-            highlights=analysis["highlights"],
-            risks=analysis["risks"],
-            source="sec",
-        )
+        filings.sort(key=lambda item: item.filed_at, reverse=True)
+        return filings
 
     def _select_latest_relevant_filing(self, payload: dict[str, Any]) -> dict[str, str] | None:
+        filings = self._select_relevant_filings(payload, floor_date=date.today() - timedelta(days=3 * 365), limit=1)
+        return filings[0] if filings else None
+
+    def _select_relevant_filings(self, payload: dict[str, Any], *, floor_date: date, limit: int) -> list[dict[str, str]]:
         recent = payload.get("filings", {}).get("recent", {})
         forms = recent.get("form", [])
         accession_numbers = recent.get("accessionNumber", [])
         filing_dates = recent.get("filingDate", [])
         primary_docs = recent.get("primaryDocument", [])
         if not forms or not accession_numbers or not filing_dates or not primary_docs:
-            return None
+            return []
+        filings: list[dict[str, str]] = []
         for form, accession_number, filing_date, primary_doc in zip(forms, accession_numbers, filing_dates, primary_docs):
-            if form in self.RELEVANT_FORMS:
-                return {
+            filing_day = datetime.fromisoformat(filing_date).date()
+            if form in self.RELEVANT_FORMS and filing_day >= floor_date:
+                filings.append(
+                    {
                     "form": form,
                     "accessionNumber": accession_number,
                     "filingDate": filing_date,
                     "primaryDocument": primary_doc,
-                }
-        return None
+                    }
+                )
+            if len(filings) >= limit:
+                break
+        return filings
 
     async def _fetch_filing_text(
         self,
@@ -361,3 +401,24 @@ class SECService:
             "highlights": highlights,
             "risks": risks,
         }
+
+    async def _load_cached_filings(self, ticker: str, floor_date: date) -> list[FilingSummary]:
+        try:
+            cursor = self.db["filings"].find({"ticker": ticker}, {"_id": 0}).sort("filed_at", -1)
+            rows = [FilingSummary.model_validate(item) async for item in cursor]
+            filtered = [row for row in rows if row.filed_at.date() >= floor_date]
+            return filtered
+        except Exception:
+            return []
+
+    async def _persist_filings(self, filings: list[FilingSummary]) -> None:
+        try:
+            collection = self.db["filings"]
+            for filing in filings:
+                await collection.update_one(
+                    {"ticker": filing.ticker, "accession_number": filing.accession_number},
+                    {"$set": filing.model_dump(mode="json")},
+                    upsert=True,
+                )
+        except Exception:
+            return

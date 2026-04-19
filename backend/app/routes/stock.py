@@ -22,6 +22,7 @@ from app.services.scoring_service import ScoringService
 from app.services.sec_service import SECService
 from app.services.thesis_service import ThesisService
 from app.services.x_service import XService
+from app.utils.math import prospect_score
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -60,14 +61,7 @@ def _fallback_macro() -> MacroSnapshot:
 def _apply_live_filing_to_score(score: DailyScore, filing: FilingSummary) -> DailyScore:
     updated = score.model_copy(deep=True)
     updated.components.filings = filing.signal_score
-    updated.overall_score = round(
-        updated.components.news * 0.25
-        + updated.components.x * 0.20
-        + updated.components.reddit * 0.15
-        + updated.components.filings * 0.20
-        + updated.components.macro * 0.20,
-        2,
-    )
+    updated.overall_score = prospect_score(updated.components.news, updated.components.filings, updated.components.macro)
     updated.evidence_summary["filings"] = filing.summary
     return updated
 
@@ -75,19 +69,14 @@ def _apply_live_filing_to_score(score: DailyScore, filing: FilingSummary) -> Dai
 def _apply_live_news_to_score(score: DailyScore, headlines: list[ContentItem], news_service: NewsService) -> DailyScore:
     updated = score.model_copy(deep=True)
     updated.components.news = news_service.news_score(headlines)
-    updated.overall_score = round(
-        updated.components.news * 0.25
-        + updated.components.x * 0.20
-        + updated.components.reddit * 0.15
-        + updated.components.filings * 0.20
-        + updated.components.macro * 0.20,
-        2,
-    )
+    updated.overall_score = prospect_score(updated.components.news, updated.components.filings, updated.components.macro)
     updated.evidence_summary["news"] = (
         f"Live news score built from {len(headlines)} article(s)."
         if headlines
         else "No recent live news items were available."
     )
+    updated.evidence_summary["x"] = "Social Pulse is preview-only and is not included in the Prospect Score."
+    updated.evidence_summary["reddit"] = "Social Pulse is preview-only and is not included in the Prospect Score."
     return updated
 
 

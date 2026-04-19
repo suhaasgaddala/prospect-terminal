@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 import yfinance as yf
@@ -64,6 +64,39 @@ class NewsService:
             pass
         return generate_news_items(ticker, generate_score_history(ticker))
 
+    async def get_historical_news(self, ticker: str, start_date: date, end_date: date) -> list[ContentItem]:
+        ticker = ticker.upper()
+        live_items: list[ContentItem] = []
+        if self.settings.finnhub_api_key:
+            try:
+                live_items = await self._fetch_finnhub_news_range(ticker, start_date, end_date)
+            except Exception:
+                live_items = []
+
+        if live_items:
+            await self._persist_items(live_items)
+            return live_items
+
+        try:
+            cursor = self.db["content_items"].find(
+                {
+                    "ticker": ticker,
+                    "source": "news",
+                    "created_at": {
+                        "$gte": datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc).isoformat(),
+                        "$lte": datetime.combine(end_date, datetime.max.time(), tzinfo=timezone.utc).isoformat(),
+                    },
+                },
+                {"_id": 0},
+            ).sort("created_at", 1)
+            cached_items = [ContentItem.model_validate(item) async for item in cursor]
+            if cached_items:
+                return cached_items
+        except Exception:
+            pass
+
+        return []
+
     def news_score(self, items: list[ContentItem]) -> float:
         weighted = []
         now = datetime.now(timezone.utc)
@@ -87,28 +120,21 @@ class NewsService:
             response = await client.get(url, params=params)
             response.raise_for_status()
             payload = response.json()
-        items = []
-        for row in payload[:15]:
-            text = compact_whitespace(row.get("summary") or row.get("headline") or "")
-            title = compact_whitespace(row.get("headline") or "")
-            url = row.get("url") or ""
-            if not text or not title or not url:
-                continue
-            items.append(
-                ContentItem(
-                    source="news",
-                    ticker=ticker,
-                    title=title,
-                    text=truncate(text, 260),
-                    author=row.get("source") or "Finnhub",
-                    url=url,
-                    created_at=datetime.fromtimestamp(row.get("datetime"), tz=timezone.utc),
-                    published_at=datetime.fromtimestamp(row.get("datetime"), tz=timezone.utc),
-                    engagement=Engagement(score=0),
-                    sentiment=self.sentiment.score_text(text),
-                )
-            )
-        return self._select_top_items(ticker, items)
+        return self._select_top_items(ticker, self._normalize_finnhub_rows(ticker, payload[:15]))
+
+    async def _fetch_finnhub_news_range(self, ticker: str, start_date: date, end_date: date) -> list[ContentItem]:
+        url = "https://finnhub.io/api/v1/company-news"
+        params = {
+            "symbol": ticker,
+            "from": start_date.isoformat(),
+            "to": end_date.isoformat(),
+            "token": self.settings.finnhub_api_key,
+        }
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            payload = response.json()
+        return self._dedupe_items(self._normalize_finnhub_rows(ticker, payload))
 
     async def _fetch_yahoo_news(self, ticker: str) -> list[ContentItem]:
         ticker_obj = yf.Ticker(ticker)
@@ -153,14 +179,36 @@ class NewsService:
         except Exception:
             return
 
-    def _select_top_items(self, ticker: str, items: list[ContentItem], limit: int = 6) -> list[ContentItem]:
-        if not items:
-            return []
+    def _normalize_finnhub_rows(self, ticker: str, rows: list[dict]) -> list[ContentItem]:
+        items = []
+        for row in rows:
+            text = compact_whitespace(row.get("summary") or row.get("headline") or "")
+            title = compact_whitespace(row.get("headline") or "")
+            url = row.get("url") or ""
+            published_at = datetime.fromtimestamp(row.get("datetime"), tz=timezone.utc)
+            if not text or not title or not url:
+                continue
+            items.append(
+                ContentItem(
+                    source="news",
+                    ticker=ticker,
+                    title=title,
+                    text=truncate(text, 260),
+                    author=row.get("source") or "Finnhub",
+                    url=url,
+                    created_at=published_at,
+                    published_at=published_at,
+                    engagement=Engagement(score=0),
+                    sentiment=self.sentiment.score_text(text),
+                )
+            )
+        return items
 
+    def _dedupe_items(self, items: list[ContentItem]) -> list[ContentItem]:
         deduped: list[ContentItem] = []
         seen_urls: set[str] = set()
         seen_titles: set[str] = set()
-        for item in items:
+        for item in sorted(items, key=lambda current: current.published_at or current.created_at):
             url_key = item.url.strip().lower()
             title_key = compact_whitespace((item.title or "").lower())
             if not url_key or not title_key:
@@ -170,6 +218,12 @@ class NewsService:
             seen_urls.add(url_key)
             seen_titles.add(title_key)
             deduped.append(item)
+        return deduped
+
+    def _select_top_items(self, ticker: str, items: list[ContentItem], limit: int = 6) -> list[ContentItem]:
+        if not items:
+            return []
+        deduped = self._dedupe_items(items)
 
         ranked = sorted(
             deduped,
