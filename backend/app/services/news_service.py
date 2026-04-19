@@ -13,6 +13,21 @@ from app.services.demo_data import generate_news_items, generate_score_history
 from app.services.sentiment_service import SentimentService
 from app.utils.text import compact_whitespace, truncate
 
+_TICKER_ALIASES: dict[str, tuple[str, ...]] = {
+    "AAPL": ("apple", "iphone", "ipad", "mac"),
+    "MSFT": ("microsoft", "azure", "windows"),
+    "NVDA": ("nvidia", "geforce", "cuda"),
+    "TSLA": ("tesla", "elon musk"),
+    "AMD": ("advanced micro devices", "amd", "ryzen"),
+    "META": ("meta", "facebook", "instagram"),
+    "AMZN": ("amazon", "aws"),
+    "GOOGL": ("alphabet", "google", "youtube"),
+    "PLTR": ("palantir",),
+    "NFLX": ("netflix",),
+    "JPM": ("jpmorgan", "jpmorgan chase"),
+    "SMCI": ("super micro", "supermicro"),
+}
+
 
 class NewsService:
     def __init__(self) -> None:
@@ -73,34 +88,38 @@ class NewsService:
             response.raise_for_status()
             payload = response.json()
         items = []
-        for row in payload[:6]:
+        for row in payload[:15]:
             text = compact_whitespace(row.get("summary") or row.get("headline") or "")
-            if not text:
+            title = compact_whitespace(row.get("headline") or "")
+            url = row.get("url") or ""
+            if not text or not title or not url:
                 continue
             items.append(
                 ContentItem(
                     source="news",
                     ticker=ticker,
-                    title=row.get("headline"),
+                    title=title,
                     text=truncate(text, 260),
                     author=row.get("source") or "Finnhub",
-                    url=row.get("url") or "",
+                    url=url,
                     created_at=datetime.fromtimestamp(row.get("datetime"), tz=timezone.utc),
                     published_at=datetime.fromtimestamp(row.get("datetime"), tz=timezone.utc),
                     engagement=Engagement(score=0),
                     sentiment=self.sentiment.score_text(text),
                 )
             )
-        return items
+        return self._select_top_items(ticker, items)
 
     async def _fetch_yahoo_news(self, ticker: str) -> list[ContentItem]:
         ticker_obj = yf.Ticker(ticker)
         raw_news = ticker_obj.news or []
         items = []
-        for row in raw_news[:6]:
+        for row in raw_news[:15]:
             content = row.get("content", {})
-            text = compact_whitespace(content.get("summary") or content.get("title") or "")
-            if not text:
+            title = compact_whitespace(content.get("title") or "")
+            text = compact_whitespace(content.get("summary") or title)
+            url = content.get("canonicalUrl", {}).get("url") or ""
+            if not text or not title or not url:
                 continue
             published = content.get("pubDate")
             published_at = datetime.fromisoformat(published.replace("Z", "+00:00")) if published else datetime.now(timezone.utc)
@@ -108,17 +127,17 @@ class NewsService:
                 ContentItem(
                     source="news",
                     ticker=ticker,
-                    title=content.get("title"),
+                    title=title,
                     text=truncate(text, 260),
                     author=content.get("provider", {}).get("displayName", "Yahoo Finance"),
-                    url=content.get("canonicalUrl", {}).get("url") or "",
+                    url=url,
                     created_at=published_at,
                     published_at=published_at,
                     engagement=Engagement(score=0),
                     sentiment=self.sentiment.score_text(text),
                 )
             )
-        return items
+        return self._select_top_items(ticker, items)
 
     async def _persist_items(self, items: list[ContentItem]) -> None:
         if not items:
@@ -133,3 +152,65 @@ class NewsService:
                 )
         except Exception:
             return
+
+    def _select_top_items(self, ticker: str, items: list[ContentItem], limit: int = 6) -> list[ContentItem]:
+        if not items:
+            return []
+
+        deduped: list[ContentItem] = []
+        seen_urls: set[str] = set()
+        seen_titles: set[str] = set()
+        for item in items:
+            url_key = item.url.strip().lower()
+            title_key = compact_whitespace((item.title or "").lower())
+            if not url_key or not title_key:
+                continue
+            if url_key in seen_urls or title_key in seen_titles:
+                continue
+            seen_urls.add(url_key)
+            seen_titles.add(title_key)
+            deduped.append(item)
+
+        ranked = sorted(
+            deduped,
+            key=lambda item: (
+                self._relevance_score(ticker, item),
+                item.published_at or item.created_at,
+            ),
+            reverse=True,
+        )
+        relevant = [item for item in ranked if self._relevance_score(ticker, item) > 0]
+        selected = relevant[:limit]
+        if len(selected) < min(limit, 3):
+            for item in ranked:
+                if item in selected:
+                    continue
+                selected.append(item)
+                if len(selected) >= limit:
+                    break
+        return selected[:limit]
+
+    def _relevance_score(self, ticker: str, item: ContentItem) -> int:
+        ticker = ticker.upper()
+        haystack = " ".join(
+            [
+                (item.title or ""),
+                item.text,
+                item.author,
+                item.url,
+            ]
+        ).lower()
+        score = 0
+        ticker_lower = ticker.lower()
+        if ticker_lower in (item.title or "").lower():
+            score += 5
+        if ticker_lower in item.text.lower():
+            score += 3
+        if f"/{ticker_lower}" in item.url.lower() or f"-{ticker_lower}-" in item.url.lower():
+            score += 2
+        for alias in _TICKER_ALIASES.get(ticker, ()):
+            if alias in (item.title or "").lower():
+                score += 4
+            elif alias in haystack:
+                score += 2
+        return score
