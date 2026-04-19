@@ -51,6 +51,9 @@ class Quote(BaseModel):
 
 class FilingSummary(BaseModel):
     ticker: str
+    company_name: Optional[str] = None
+    accession_number: Optional[str] = None
+    cik: Optional[str] = None
     form_type: str
     filed_at: datetime
     filing_url: str
@@ -140,4 +143,3 @@ class LeaderboardEntry(BaseModel):
     daily_change_percent: float
     overall_score: float
     thesis_rating: ThesisRating
-

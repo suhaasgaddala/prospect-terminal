@@ -2,6 +2,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { LeaderboardCard } from "@/components/cards/leaderboard-card";
 import { api } from "@/services/api";
 
+export const dynamic = "force-dynamic";
+
 export default async function LeaderboardPage() {
   const leaderboard = await api.getLeaderboard();
 

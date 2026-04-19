@@ -16,7 +16,10 @@ const config: Config = {
         foreground: "hsl(var(--foreground))",
         card: "hsl(var(--card))",
         border: "hsl(var(--border))",
-        muted: "hsl(var(--muted))",
+        muted: {
+          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
+          foreground: "hsl(var(--muted-foreground) / <alpha-value>)"
+        },
         accent: "hsl(var(--accent))",
         success: "hsl(var(--success))",
         danger: "hsl(var(--danger))"

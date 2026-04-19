@@ -311,6 +311,9 @@ def generate_filing(ticker: str, scores: list[DailyScore]) -> FilingSummary:
     ]
     return FilingSummary(
         ticker=ticker,
+        company_name=COMPANY_NAMES.get(ticker, ticker),
+        accession_number=f"0000000000-00-{_ticker_seed(ticker):06d}",
+        cik=str(_ticker_seed(ticker)).zfill(10),
         form_type="10-Q",
         filed_at=_utc_datetime(latest.date - timedelta(days=5), hour=13),
         filing_url=f"https://www.sec.gov/ixviewer/ix.html?doc=/Archives/{ticker.lower()}-latest.htm",

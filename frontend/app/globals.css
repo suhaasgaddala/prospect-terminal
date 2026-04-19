@@ -2,12 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+
 :root {
   --background: 198 42% 4%;
   --foreground: 198 32% 94%;
   --card: 197 40% 7%;
   --border: 196 27% 19%;
   --muted: 198 15% 60%;
+  /* Used by Tailwind as `text-muted-foreground` (see tailwind.config.ts `muted.foreground`) */
+  --muted-foreground: 198 12% 58%;
   --accent: 191 68% 60%;
   --success: 151 61% 58%;
   --danger: 0 72% 62%;

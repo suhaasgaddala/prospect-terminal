@@ -9,6 +9,9 @@ import { TickerSearch } from "@/components/layout/ticker-search";
 import { api } from "@/services/api";
 import { formatPercent } from "@/lib/formatters";
 
+/** Always SSR with live API data — avoids flaky static/dynamic toggling in dev. */
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const [leaderboard, macro] = await Promise.all([api.getLeaderboard(), api.getMacro()]);
   const topBull = leaderboard.bullish[0];

@@ -10,6 +10,8 @@ import { strategies } from "@/lib/constants";
 import { formatPercent } from "@/lib/formatters";
 import { api } from "@/services/api";
 
+export const dynamic = "force-dynamic";
+
 export default async function BacktestPage({
   searchParams
 }: {
